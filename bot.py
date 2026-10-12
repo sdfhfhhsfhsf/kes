@@ -8,22 +8,20 @@ from database import init_db, get_user, update_sant
 TOKEN = "8507497335:AAGAAyTag5KuSFFGJpUijuOTgDzU6UeCHOg"
 ADMIN_ID = 8854073031
 
-# وضعیت‌های موقت برای ساخت کد هدیه
 admin_states = {}
 
-async def start(command_or_message, context: ContextTypes.DEFAULT_TYPE):
-    # بررسی اینکه دستور در پی‌وی است یا گروه
-    chat_type = command_or_message.effective_chat.type
-    user = command_or_message.effective_user
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_type = update.effective_chat.type
+    user = update.effective_user
     
     if chat_type == "private":
-        get_user(user.id, user.username)
+        get_user(user.id, user.username or "")
         keyboard = [
             [InlineKeyboardButton("🎁 دریافت کد هدیه", callback_data="get_promo")],
             [InlineKeyboardButton("➕ افزودن ربات به گروه", url=f"https://t.me/{context.bot.username}?startgroup=true")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await command_or_message.message.reply_text(
+        await update.message.reply_text(
             "سلام! به ربات خوش اومدی. برای استفاده از بازی‌ها، ربات رو به گروه خودت اضافه کن.",
             reply_markup=reply_markup
         )
@@ -32,7 +30,7 @@ async def sant_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.type == "private":
         return
     user = update.effective_user
-    sant, _ = get_user(user.id, user.username)
+    sant, _ = get_user(user.id, user.username or "")
     await update.message.reply_text(f"📏 اندازه سانت شما: {sant} سانت")
 
 async def kir_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -55,7 +53,7 @@ async def kir_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(f"⏳ باید {hours} ساعت و {minutes} دقیقه دیگر صبر کنید!")
             return
 
-    # سیستم شانس (۱ تا ۳۰ شانس بیشتری دارد)
+    # سیستم شانس (۱ تا ۳۰ شانس بیشتر)
     if random.random() < 0.75:
         amount = random.randint(1, 30)
     else:
@@ -67,7 +65,7 @@ async def kir_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     conn.commit()
     conn.close()
     
-    await update.message.reply_text(f"🎉 شانس امشب شما: {amount} سانت به موجودی شما اضافه شد!")
+    await update.message.reply_text(f"🎉 شانس شما: {amount} سانت به موجودی شما اضافه شد!")
 
 async def bazi_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.type == "private":
@@ -83,12 +81,11 @@ async def bazi_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ مقدار نامعتبر است.")
         return
         
-    sant, _ = get_user(user.id, user.username)
+    sant, _ = get_user(user.id, user.username or "")
     if sant < amount:
         await update.message.reply_text("❌ موجودی ناکافی هست!")
         return
         
-    # کم کردن موقت یا ثبت بازی
     update_sant(user.id, -amount)
     
     keyboard = [
@@ -135,12 +132,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.answer("❌ سازنده نمی‌تواند وارد بازی خود شود!", show_alert=True)
             return
             
-        sant, _ = get_user(user.id, user.username)
+        sant, _ = get_user(user.id, user.username or "")
         if sant < amount:
             await query.answer("❌ موجودی شما ناکافی است!", show_alert=True)
             return
             
-        # کسر موجودی از شرکت‌کننده و پرداخت جایزه به سازنده یا برنده تصادفی (طبق درخواست: هر دو به برنده منتقل میشه)
         update_sant(user.id, -amount)
         winner = random.choice([creator_id, user.id])
         prize = amount * 2
@@ -150,7 +146,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         winner_name = winner_user.username or winner_user.first_name
         
         await query.message.edit_text(
-            f"🏆 بازی به پایان رسید!\nمبلغ کل: {prize} سانت\n برنده: @{winner_name} 🎉"
+            f"🏆 بازی به پایان رسید!\nمبلغ کل جایزه: {prize} سانت\nبرنده: @{winner_name} 🎉"
         )
         
     elif data == "get_promo":
@@ -168,6 +164,8 @@ async def panel_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
+    if not update.message or not update.message.text:
+        return
     text = update.message.text
     
     if user.id == ADMIN_ID and user.id in admin_states:
@@ -241,7 +239,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         update_sant(user.id, amount)
         sant, _ = get_user(user.id)
-        admin_states.pop(user.id)
+        admin_states.pop(user.id, None)
         
         await update.message.reply_text(f"🎁 تبریک! {amount} سانت به شما اضافه شد.\n📏 موجودی جدید: {sant} سانت")
 
